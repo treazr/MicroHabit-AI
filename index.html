@@ -35,6 +35,65 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <style>
+    #installBanner {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #4a90e2, #2ecc71);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    z-index: 999;
+    width: 85%;
+    max-width: 400px;
+    display: none;
+    animation: slideUp 0.5s ease;
+}
+
+@keyframes slideUp {
+    from { bottom: -100px; opacity: 0; }
+    to { bottom: 20px; opacity: 1; }
+}
+
+#installBanner h4 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+}
+
+#installBanner p {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+#installBanner .banner-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+#installBanner .btn-install {
+    flex: 1;
+    background: white;
+    color: #4a90e2;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#installBanner .btn-dismiss {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
         :root {
             --primary: #4a90e2;
             --bg: #f0f4f8;
@@ -1705,6 +1764,66 @@ function nextMonth() {
                 document.getElementById('supportEmail').value = currentUser.email;
             }
         }
+        // Install Banner Logic
+let deferredPrompt = null;
+
+// Capture the install prompt
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    
+    // Only show if user hasn't dismissed before
+    if (!localStorage.getItem('installBannerDismissed')) {
+        // Wait 30 seconds before showing
+        setTimeout(() => {
+            // Only show if user is logged in
+            if (currentUser) {
+                document.getElementById('installBanner').style.display = 'block';
+            }
+        }, 30000); // 30 seconds
+    }
+});
+
+// Install the app
+function installApp() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((result) => {
+            if (result.outcome === 'accepted') {
+                console.log('✅ App installed!');
+                dismissInstallBanner();
+            }
+            deferredPrompt = null;
+        });
+    } else {
+        // Fallback for iOS (Safari doesn't support beforeinstallprompt)
+        alert('📱 To add to home screen:\n\niOS Safari: Tap Share → "Add to Home Screen"\n\nAndroid Chrome: Tap menu (⋮) → "Add to Home Screen"');
+        dismissInstallBanner();
+    }
+}
+
+// Dismiss and never show again
+function dismissInstallBanner() {
+    document.getElementById('installBanner').style.display = 'none';
+    localStorage.setItem('installBannerDismissed', 'true');
+    console.log('Install banner dismissed - won\'t show again');
+}
+
+// Check if already installed
+window.addEventListener('appinstalled', () => {
+    console.log('✅ MicroHabit AI installed as PWA!');
+    dismissInstallBanner();
+    localStorage.setItem('installBannerDismissed', 'true');
+});
     </script>
+    <!-- Install Banner -->
+<div id="installBanner">
+    <h4>📱 Add to Home Screen!</h4>
+    <p>Get quick access like a native app - no app store needed!</p>
+    <div class="banner-buttons">
+        <button class="btn-install" onclick="installApp()">➕ Add to Home Screen</button>
+        <button class="btn-dismiss" onclick="dismissInstallBanner()">✕ Not now</button>
+    </div>
+</div>
 </body>
 </html>
