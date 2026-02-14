@@ -166,13 +166,23 @@
 </head>
 <body>
 <div id="authSection">
-  <h2 id="authTitle">Sign Up or Login</h2>
-  <p>Use email to keep premium & habits on any device!</p>
+  <div style="text-align:center; padding: 20px 10px; background: linear-gradient(135deg, #4a90e2, #2ecc71); border-radius: 12px; margin-bottom: 20px; color: white;">
+    <h2 style="margin:0 0 10px 0; font-size: 22px;">🤖 AI That Predicts When You'll Skip</h2>
+    <p style="margin: 5px 0; font-size: 15px;">Not another reminder app. Real AI coaching.</p>
+    <div style="display:flex; justify-content:center; gap:15px; margin-top:15px; flex-wrap:wrap;">
+      <span style="background:rgba(255,255,255,0.2); padding:6px 12px; border-radius:20px; font-size:13px;">🔥 Streak Tracking</span>
+      <span style="background:rgba(255,255,255,0.2); padding:6px 12px; border-radius:20px; font-size:13px;">🌍 Any Timezone</span>
+      <span style="background:rgba(255,255,255,0.2); padding:6px 12px; border-radius:20px; font-size:13px;">💰 $9/month</span>
+      <span style="background:rgba(255,255,255,0.2); padding:6px 12px; border-radius:20px; font-size:13px;">🆓 Free version available</span>
+    </div>
+  </div>
+  <h2 id="authTitle" style="text-align:center;">Get Started Free</h2>
+  <p style="text-align:center;">Your habits. Your data. Synced everywhere.</p>
   <input type="email" id="emailInput" placeholder="Your email">
   <input type="password" id="passwordInput" placeholder="Password (6+ chars)">
   <input type="password" id="confirmPasswordInput" placeholder="Confirm password" style="display:none;">
-  <button onclick="signUp()" id="signupBtn">Sign Up (new)</button>
-  <button onclick="login()" id="loginBtn">Login</button>
+  <button onclick="signUp()" id="signupBtn" style="width:100%; padding:15px; font-size:16px; background: #2ecc71;">🚀 Start Tracking Free</button>
+<button onclick="login()" id="loginBtn" style="width:100%; padding:15px; font-size:16px; background: #4a90e2; margin-top:8px;">🔑 Login to My Account</button>
   <button onclick="showForgotPassword()" style="background:#666; font-size:14px;">Forgot Password?</button>
   <p id="authStatus" style="color: red;"></p>
 </div>
