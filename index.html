@@ -243,6 +243,26 @@
   <button onclick="signUp()" id="signupBtn" style="width:100%; padding:15px; font-size:16px; background: #2ecc71;">🚀 Start Tracking Free</button>
 <button onclick="login()" id="loginBtn" style="width:100%; padding:15px; font-size:16px; background: #4a90e2; margin-top:8px;">🔑 Login to My Account</button>
   <button onclick="showForgotPassword()" style="background:#666; font-size:14px;">Forgot Password?</button>
+  <!-- Guest Mode Option -->
+  <div style="margin-top: 25px; text-align: center; border-top: 1px solid #ddd; padding-top: 20px;">
+    <p style="color: #666; margin-bottom: 10px; font-size: 14px;">or</p>
+    <button onclick="startGuestMode()" id="guestBtn" style="
+      background: transparent;
+      border: 2px solid #4a90e2;
+      color: #4a90e2;
+      padding: 12px 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    ">
+      ✨ Try as Guest (No signup required)
+    </button>
+    <p style="color: #888; font-size: 12px; margin-top: 8px;">
+      🆓 Add up to 3 habits • No email needed • Try it now!
+    </p>
+  </div>
   <p id="authStatus" style="color: red;"></p>
 </div>
     <!-- Onboarding Modal -->
@@ -264,6 +284,23 @@
     <h1>MicroHabit AI Tracker</h1>
     
     <div id="mainApp" style="display:none;">
+    <!-- Guest Mode Banner -->
+  <div id="guestBanner" style="display: none; background: #FFF3CD; border: 2px solid #FFE69C; padding: 12px; text-align: center; border-radius: 8px; margin: 10px 0;">
+    <p style="margin: 0; color: #856404; font-size: 14px; font-weight: bold;">
+      🔓 Guest Mode - Your data will be lost when you clear browser or close app
+    </p>
+    <button onclick="convertGuestToUser()" style="
+      background: #FF6B6B;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      margin-top: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    ">Sign Up to Save Forever</button>
+  </div>
     <div style="text-align:center; margin-bottom:20px;">
     <span id="userEmail"></span>
     <button onclick="logout()" style="background:#666;">Logout</button>
@@ -1041,6 +1078,13 @@ function sendVIPEmail(userEmail, userName) {
     handler.openIframe();
 }
         function saveHabits() {
+        // If guest, save to localStorage instead
+    const isGuest = localStorage.getItem('isGuest') === 'true';
+    if (isGuest) {
+        updateGuestHabits();
+        renderHabits();
+        return;
+    }
     // Migrate old habits if needed
     habits.forEach(h => {
         if (!h.goal) h.goal = 7;
@@ -1200,6 +1244,13 @@ function sendVIPEmail(userEmail, userName) {
         }
 
         function addHabit() {
+         // Check if guest and limit to 3 habits
+    const isGuest = localStorage.getItem('isGuest') === 'true';
+    if (isGuest && habits.length >= 3) {
+        alert('🔓 Guest mode limited to 3 habits.\n\nSign up for unlimited habits!');
+        showConversionPrompt('You have reached the 3-habit limit! Sign up for unlimited habits.');
+        return;
+    }
             if (!isPremium && !isVIP && habits.length >= 3) {
                 alert('🔒 Free limit: 3 habits. Upgrade to Premium for unlimited!');
                 return;
@@ -1588,13 +1639,44 @@ function nextMonth() {
 }
 
   // CRITICAL: Firebase auth state listener - this runs on page load AND when auth changes
+  // CRITICAL: Firebase auth state listener with GUEST MODE support
   auth.onAuthStateChanged(async (user) => {
     if (user) {
         // User is logged in
         currentUser = user;
         document.getElementById('authSection').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
+        document.getElementById('guestBanner').style.display = 'none';
         document.getElementById('userEmail').textContent = '👤 ' + user.email;
+
+        // Check if converting from guest
+        const pendingGuestData = sessionStorage.getItem('pendingGuestData');
+        const convertingFromGuest = sessionStorage.getItem('convertingFromGuest');
+        
+        if (convertingFromGuest && pendingGuestData) {
+            // Migrate guest habits to Firebase
+            const guestHabits = JSON.parse(pendingGuestData);
+            
+            // Save to Firestore
+            await db.collection("users").doc(user.uid).set({
+                habits: guestHabits,
+                isPremium: false,
+                isVIP: false,
+                createdAt: new Date().toISOString(),
+                convertedFromGuest: true
+            });
+            
+            // Clean up
+            sessionStorage.removeItem('pendingGuestData');
+            sessionStorage.removeItem('convertingFromGuest');
+            localStorage.removeItem('guestHabits');
+            localStorage.removeItem('isGuest');
+            localStorage.removeItem('guestUser');
+            localStorage.removeItem('guestStartTime');
+            
+            alert('✅ Welcome! Your habits have been saved to your account!');
+            console.log('✅ Converted guest to registered user');
+        }
 
         // Fetch data from Firebase
         const docSnap = await db.collection("users").doc(user.uid).get();
@@ -1605,7 +1687,7 @@ function nextMonth() {
             // Load habits from cloud
             habits = cloudData.habits || [];
             
-            // CRITICAL FIX: Load premium status from Firebase, not localStorage
+            // Load premium status
             isPremium = cloudData.isPremium || false;
             isVIP = cloudData.isVIP || false;
             
@@ -1627,14 +1709,34 @@ function nextMonth() {
         loadReferralCode();
         checkPremiumExpiration();
     } else {
-        // No user logged in
-        currentUser = null;
-        habits = [];
-        isPremium = false;
-        isVIP = false;
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('mainApp').style.display = 'none';
-        console.log('👋 No user logged in');
+        // Check if guest mode
+        const isGuest = localStorage.getItem('isGuest') === 'true';
+        
+        if (isGuest) {
+            // Guest mode
+            const guestUser = JSON.parse(localStorage.getItem('guestUser'));
+            currentUser = guestUser;
+            
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            document.getElementById('guestBanner').style.display = 'block';
+            document.getElementById('userEmail').textContent = '🔓 Guest Mode';
+            
+            loadGuestHabits();
+            isPremium = false;
+            isVIP = false;
+            
+            console.log('👋 Guest mode active');
+        } else {
+            // No user logged in and not guest
+            currentUser = null;
+            habits = [];
+            isPremium = false;
+            isVIP = false;
+            document.getElementById('authSection').style.display = 'block';
+            document.getElementById('mainApp').style.display = 'none';
+            console.log('👋 No user logged in');
+        }
     }
 
     // Update UI
@@ -1644,6 +1746,7 @@ function nextMonth() {
     loadApiKey();
     checkNotificationStatus();
 });
+
 
         // Initialize on page load
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -1815,6 +1918,165 @@ window.addEventListener('appinstalled', () => {
     dismissInstallBanner();
     localStorage.setItem('installBannerDismissed', 'true');
 });
+// ========== GUEST MODE FUNCTIONS ==========
+
+// Start guest mode
+function startGuestMode() {
+    localStorage.setItem('isGuest', 'true');
+    localStorage.setItem('guestStartTime', Date.now());
+    
+    const guestUser = {
+        uid: 'guest_' + Date.now(),
+        email: 'guest@microhabit.ai',
+        isGuest: true,
+        displayName: 'Guest User'
+    };
+    
+    localStorage.setItem('guestUser', JSON.stringify(guestUser));
+    
+    // Show main app as guest
+    document.getElementById('authSection').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    document.getElementById('guestBanner').style.display = 'block';
+    document.getElementById('userEmail').textContent = '🔓 Guest Mode';
+    
+    currentUser = guestUser;
+    loadGuestHabits();
+    renderHabits();
+    applyTheme();
+    console.log('✅ Guest mode started');
+}
+
+// Load guest habits from localStorage
+function loadGuestHabits() {
+    const guestHabits = localStorage.getItem('guestHabits');
+    if (guestHabits) {
+        habits = JSON.parse(guestHabits);
+    } else {
+        habits = [];
+    }
+    console.log(`📦 Loaded ${habits.length} guest habits`);
+}
+
+// Save guest habit
+function saveGuestHabit(habit) {
+    const guestHabits = JSON.parse(localStorage.getItem('guestHabits') || '[]');
+    
+    // Limit to 3 habits for free tier
+    if (guestHabits.length >= 3) {
+        alert('🔓 Guest mode limited to 3 habits.\n\nSign up for unlimited habits!');
+        showConversionPrompt('You have hit the 3-habit limit! Sign up for unlimited habits.');
+        return false;
+    }
+    
+    guestHabits.push(habit);
+    localStorage.setItem('guestHabits', JSON.stringify(guestHabits));
+    habits = guestHabits;
+    return true;
+}
+
+// Update guest habits in localStorage
+function updateGuestHabits() {
+    localStorage.setItem('guestHabits', JSON.stringify(habits));
+    trackGuestUsage();
+}
+
+// Track guest usage and show conversion prompts
+function trackGuestUsage() {
+    const guestStartTime = parseInt(localStorage.getItem('guestStartTime') || Date.now());
+    const now = Date.now();
+    const hoursUsed = (now - guestStartTime) / (1000 * 60 * 60);
+    
+    const totalCheckins = habits.reduce((total, habit) => {
+        return total + (habit.checkIns ? habit.checkIns.length : 0);
+    }, 0);
+    
+    // Show prompts based on usage
+    if (totalCheckins >= 5 && !localStorage.getItem('promptShown5Checkins')) {
+        showConversionPrompt('🔥 You have 5 check-ins! Sign up to save your progress forever.');
+        localStorage.setItem('promptShown5Checkins', 'true');
+    }
+    
+    if (hoursUsed >= 24 && !localStorage.getItem('promptShown24Hours')) {
+        showConversionPrompt('⏰ You have been using MicroHabit AI for a day! Sign up to keep your data.');
+        localStorage.setItem('promptShown24Hours', 'true');
+    }
+    
+    if (habits.length === 3 && !localStorage.getItem('promptShownMaxHabits')) {
+        showConversionPrompt('🚀 You have hit the 3-habit limit! Sign up for unlimited habits.');
+        localStorage.setItem('promptShownMaxHabits', 'true');
+    }
+}
+
+// Show conversion prompt
+function showConversionPrompt(message) {
+    const promptHTML = `
+        <div id="guestPrompt" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #FF9933 0%, #FF6B6B 100%);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            z-index: 9999;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        ">
+            <p style="margin: 0 0 10px 0; font-weight: bold; font-size: 15px;">${message}</p>
+            <button onclick="convertGuestToUser()" style="
+                background: white;
+                color: #FF6B6B;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-weight: bold;
+                cursor: pointer;
+                margin-right: 10px;
+            ">Sign Up Now</button>
+            <button onclick="closeGuestPrompt()" style="
+                background: transparent;
+                color: white;
+                border: 2px solid white;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+            ">Maybe Later</button>
+        </div>
+    `;
+    
+    if (!document.getElementById('guestPrompt')) {
+        document.body.insertAdjacentHTML('afterbegin', promptHTML);
+    }
+}
+
+// Close prompt
+function closeGuestPrompt() {
+    const prompt = document.getElementById('guestPrompt');
+    if (prompt) prompt.remove();
+}
+
+// Convert guest to real user
+function convertGuestToUser() {
+    // Save guest data temporarily
+    sessionStorage.setItem('pendingGuestData', localStorage.getItem('guestHabits'));
+    sessionStorage.setItem('convertingFromGuest', 'true');
+    
+    // Close prompt
+    closeGuestPrompt();
+    
+    // Show auth section for signup
+    document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('authSection').style.display = 'block';
+    document.getElementById('authTitle').textContent = 'Sign Up to Save Your Habits!';
+    document.getElementById('authStatus').textContent = '🔒 Create an account to keep your progress forever!';
+    document.getElementById('authStatus').style.color = '#FF6B6B';
+    
+    // Show signup form
+    document.getElementById('confirmPasswordInput').style.display = 'block';
+}
+
+// ========== END GUEST MODE FUNCTIONS ==========
     </script>
     <!-- Install Banner -->
 <div id="installBanner">
