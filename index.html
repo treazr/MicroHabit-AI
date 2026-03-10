@@ -283,11 +283,12 @@
 
     <h1>MicroHabit AI Tracker</h1>
     
-    <div id="mainApp" style="display:none;">
-    <!-- Guest Mode Banner -->
-  <div id="guestBanner" style="display: none; background: #FFF3CD; border: 2px solid #FFE69C; padding: 12px; text-align: center; border-radius: 8px; margin: 10px 0;">
+    <div id="guestBanner" style="display: none; background: #FFF3CD; border: 2px solid #FFE69C; padding: 12px; text-align: center; border-radius: 8px; margin: 10px 0;">
     <p style="margin: 0; color: #856404; font-size: 14px; font-weight: bold;">
-      🔓 Guest Mode - Your data will be lost when you clear browser or close app
+      🔓 Guest Mode - Your data will be lost when you clear browser
+    </p>
+    <p style="margin: 5px 0 0 0; color: #856404; font-size: 12px;">
+      <strong>Already have an account?</strong> Login first, then your guest habits will be added!
     </p>
     <button onclick="convertGuestToUser()" style="
       background: #FF6B6B;
@@ -299,8 +300,10 @@
       cursor: pointer;
       font-weight: bold;
       font-size: 14px;
-    ">Sign Up to Save Forever</button>
-  </div>
+    ">Sign Up With NEW Email</button>
+</div>
+    <div id="mainApp" style="display:none;">
+    <!-- Guest Mode Banner -->
     <div style="text-align:center; margin-bottom:20px;">
     <span id="userEmail"></span>
     <button onclick="logout()" style="background:#666;">Logout</button>
@@ -1523,11 +1526,57 @@ function nextMonth() {
                 alert('✅ Streaks summary copied to clipboard!\n\n' + shareText);
             }
         }
-
+// Check if email already exists in Firebase Auth
+async function checkEmailExists(email) {
+    try {
+        const methods = await firebase.auth().fetchSignInMethodsForEmail(email);
+        return methods && methods.length > 0;
+    } catch (error) {
+        console.error('Error checking email:', error);
+        return false;
+    }
+}
   function signUp() {
     const email = document.getElementById('emailInput').value.trim();
     const password = document.getElementById('passwordInput').value;
     const confirmPassword = document.getElementById('confirmPasswordInput').value;
+    // Check if converting from guest
+    const convertingFromGuest = sessionStorage.getItem('convertingFromGuest') === 'true';
+    
+    if (convertingFromGuest) {
+        // For guest conversion, check if email exists
+        checkEmailExists(email).then(exists => {
+            if (exists) {
+                // Email exists - they should LOGIN instead
+                const shouldLogin = confirm(
+                    '⚠️ This email already has a MicroHabit AI account!\n\n' +
+                    'Click OK to LOGIN and add your guest habits to your existing account.\n' +
+                    'Click Cancel to use a different email address.'
+                );
+                
+                if (shouldLogin) {
+                    // Trigger login instead
+                    login();
+                } else {
+                    document.getElementById('emailInput').value = '';
+                    document.getElementById('emailInput').focus();
+                }
+                return;
+            } else {
+                // Email doesn't exist - proceed with signup
+                proceedWithSignup(email, password, confirmPassword);
+            }
+        });
+    } else {
+        // Normal signup (not from guest)
+        proceedWithSignup(email, password, confirmPassword);
+    }
+}
+
+// Separate the actual signup logic
+function proceedWithSignup(email, password, confirmPassword) {
+    // REST OF YOUR EXISTING SIGNUP CODE GOES HERE
+    // (All the validation and firebase.auth().createUserWithEmailAndPassword...)
     
     if (!email || password.length < 6) {
       document.getElementById('authStatus').textContent = '❌ Enter valid email and password (6+ chars)';
@@ -1654,17 +1703,38 @@ function nextMonth() {
         const convertingFromGuest = sessionStorage.getItem('convertingFromGuest');
         
         if (convertingFromGuest && pendingGuestData) {
-            // Migrate guest habits to Firebase
-            const guestHabits = JSON.parse(pendingGuestData);
-            
-            // Save to Firestore
-            await db.collection("users").doc(user.uid).set({
-                habits: guestHabits,
-                isPremium: false,
-                isVIP: false,
-                createdAt: new Date().toISOString(),
-                convertedFromGuest: true
-            });
+    // Check if this is an existing account first!
+    const docSnap = await db.collection("users").doc(user.uid).get();
+    
+    if (docSnap.exists) {
+        // EXISTING ACCOUNT - MERGE guest habits, don't replace!
+        const existingData = docSnap.data();
+        const existingHabits = existingData.habits || [];
+        const guestHabits = JSON.parse(pendingGuestData);
+        
+        // Merge: Add guest habits to existing habits
+        const mergedHabits = [...existingHabits, ...guestHabits];
+        
+        await db.collection("users").doc(user.uid).update({
+            habits: mergedHabits,
+            lastUpdated: new Date().toISOString()
+        });
+        
+        alert('✅ Welcome back! Your guest habits have been added to your existing account.');
+        console.log('✅ Merged guest habits with existing account');
+    } else {
+        // NEW ACCOUNT - Safe to use .set()
+        await db.collection("users").doc(user.uid).set({
+            habits: JSON.parse(pendingGuestData),
+            isPremium: false,
+            isVIP: false,
+            createdAt: new Date().toISOString(),
+            convertedFromGuest: true
+        });
+        
+        alert('✅ Welcome! Your habits have been saved to your new account!');
+        console.log('✅ Created new account from guest');
+    }
             
             // Clean up
             sessionStorage.removeItem('pendingGuestData');
@@ -1674,8 +1744,6 @@ function nextMonth() {
             localStorage.removeItem('guestUser');
             localStorage.removeItem('guestStartTime');
             
-            alert('✅ Welcome! Your habits have been saved to your account!');
-            console.log('✅ Converted guest to registered user');
         }
 
         // Fetch data from Firebase
@@ -2069,11 +2137,14 @@ function convertGuestToUser() {
     document.getElementById('mainApp').style.display = 'none';
     document.getElementById('authSection').style.display = 'block';
     document.getElementById('authTitle').textContent = 'Sign Up to Save Your Habits!';
-    document.getElementById('authStatus').textContent = '🔒 Create an account to keep your progress forever!';
+    document.getElementById('authStatus').innerHTML = '🔒 <strong>IMPORTANT:</strong> Use a NEW email address!<br>If you already have an account, your guest habits will be ADDED to it.';
     document.getElementById('authStatus').style.color = '#FF6B6B';
     
     // Show signup form
     document.getElementById('confirmPasswordInput').style.display = 'block';
+    
+    // HIDE login button to prevent confusion
+    document.getElementById('loginBtn').style.display = 'none';
 }
 
 // ========== END GUEST MODE FUNCTIONS ==========
