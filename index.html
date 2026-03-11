@@ -900,38 +900,6 @@ function sendVIPEmail(userEmail, userName) {
             }
         }
 
-        // Check if premium expired (for referral-based premium)
-        async function checkPremiumExpiration() {
-            if (!currentUser) return;
-            
-            const docSnap = await db.collection("users").doc(currentUser.uid).get();
-            if (docSnap.exists) {
-                const data = docSnap.data();
-                
-                // Check if they have a premiumUntil date
-                if (data.premiumUntil) {
-                    const premiumUntil = new Date(data.premiumUntil);
-                    const now = new Date();
-                    
-                    if (premiumUntil > now) {
-                        // Still premium
-                        isPremium = true;
-                    } else {
-                        // Premium expired - only if they don't have a paid subscription
-                        if (!data.hasActiveSubscription) {
-                            isPremium = false;
-                            await db.collection("users").doc(currentUser.uid).set({
-                                isPremium: false
-                            }, { merge: true });
-                        }
-                    }
-                }
-            }
-            
-            applyTheme();
-            checkPremium();
-        }
-
         function suggestEmoji(name) {
             const lower = name.toLowerCase();
             if (lower.includes('gym') || lower.includes('exercise')) return '💪';
