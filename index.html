@@ -328,6 +328,13 @@
         <input type="number" id="goalInput" min="1" max="7" placeholder="Goal: days/week (1-7, default 7)">
         <button onclick="addHabit()">Add Habit</button>
     </div>
+    <div id="renewalSection" style="display: none; background: linear-gradient(135deg, #ff6b6b, #ff8c00); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: center; color: white;">
+    <h3 style="margin-top: 0;">⏰ Subscription Expired</h3>
+    <p>Your subscription has ended. Renew now to continue enjoying premium features!</p>
+    <button onclick="renewSubscription()" style="background: white; color: #ff6b6b; border: none; padding: 15px 30px; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer;">
+        Renew Subscription
+    </button>
+</div>
     <ul id="habitsList"></ul>
     
     <button onclick="toggleCalendar()" style="width:100%; margin-top:20px; padding:15px; font-size:18px; background:#333;">📅 View Calendar History</button>
@@ -977,14 +984,19 @@ function sendVIPEmail(userEmail, userName) {
             isPremium = true;
             isVIP = false;
 
-            db.collection("users").doc(currentUser.uid).set({
-                isPremium: true,
-                isVIP: false,
-                planType: 'premium',
-                hasActiveSubscription: true,
-                premiumActivatedAt: new Date().toISOString(),
-                paystackReference: response.reference
-            }, { merge: true }).then(() => {
+            // Calculate expiration date (30 days from now)
+const expiryDate = new Date();
+expiryDate.setDate(expiryDate.getDate() + 30);
+
+db.collection("users").doc(currentUser.uid).set({
+    isPremium: true,
+    isVIP: false,
+    planType: 'premium',
+    hasActiveSubscription: true,
+    premiumActivatedAt: new Date().toISOString(),
+    premiumExpiresAt: expiryDate.toISOString(),  // ← ADD THIS
+    paystackReference: response.reference
+}, { merge: true }).then(() => {
                 console.log("Premium status saved to Firebase successfully!");
                 saveHabits();
                 applyTheme();
@@ -1016,14 +1028,19 @@ function sendVIPEmail(userEmail, userName) {
             isVIP = true;
             sendVIPEmail(currentUser.email, currentUser.email.split('@')[0]);
 
-            db.collection("users").doc(currentUser.uid).set({
-                isPremium: true,
-                isVIP: true,
-                planType: 'vip_monthly',
-                hasActiveSubscription: true,
-                vipActivatedAt: new Date().toISOString(),
-                paystackReference: response.reference
-            }, { merge: true }).then(() => {
+            // Calculate expiration date (30 days from now)
+const expiryDate = new Date();
+expiryDate.setDate(expiryDate.getDate() + 30);
+
+db.collection("users").doc(currentUser.uid).set({
+    isPremium: true,
+    isVIP: true,
+    planType: 'vip_monthly',
+    hasActiveSubscription: true,
+    vipActivatedAt: new Date().toISOString(),
+    vipExpiresAt: expiryDate.toISOString(),  // ← ADD THIS
+    paystackReference: response.reference
+}, { merge: true }).then(() => {
                 console.log("VIP status saved to Firebase successfully!");
                 saveHabits();
                 applyTheme();
@@ -1057,14 +1074,19 @@ function sendVIPEmail(userEmail, userName) {
             isVIP = true;
             sendVIPEmail(currentUser.email, currentUser.email.split('@')[0]);
 
-            db.collection("users").doc(currentUser.uid).set({
-                isPremium: true,
-                isVIP: true,
-                planType: 'vip_yearly',
-                hasActiveSubscription: true,
-                vipActivatedAt: new Date().toISOString(),
-                paystackReference: response.reference
-            }, { merge: true }).then(() => {
+            // Calculate expiration date (365 days from now)
+const expiryDate = new Date();
+expiryDate.setDate(expiryDate.getDate() + 365);
+
+db.collection("users").doc(currentUser.uid).set({
+    isPremium: true,
+    isVIP: true,
+    planType: 'vip_yearly',
+    hasActiveSubscription: true,
+    vipActivatedAt: new Date().toISOString(),
+    vipExpiresAt: expiryDate.toISOString(),  // ← ADD THIS
+    paystackReference: response.reference
+}, { merge: true }).then(() => {
                 console.log("VIP Yearly status saved to Firebase successfully!");
                 saveHabits();
                 applyTheme();
@@ -1079,6 +1101,80 @@ function sendVIPEmail(userEmail, userName) {
         }
     });
     handler.openIframe();
+}
+// Check if premium/VIP subscription has expired
+function checkPremiumExpiration() {
+    if (!currentUser) return;
+    
+    db.collection("users").doc(currentUser.uid).get().then((doc) => {
+        if (!doc.exists) return;
+        
+        const data = doc.data();
+        const now = new Date();
+        
+        // Check Premium expiration
+        if (data.isPremium && data.premiumExpiresAt) {
+            const expiryDate = new Date(data.premiumExpiresAt);
+            
+            if (now > expiryDate) {
+                // Premium expired!
+                console.log('❌ Premium subscription expired');
+                
+                db.collection("users").doc(currentUser.uid).update({
+                    isPremium: false,
+                    hasActiveSubscription: false,
+                    subscriptionExpired: true,
+                    expiredAt: new Date().toISOString()
+                }).then(() => {
+                    isPremium = false;
+                    alert('⏰ Your Premium subscription has expired!\n\nRenew now to continue enjoying unlimited habits and premium features.');
+                    
+                    // Reload to apply changes
+                    window.location.reload();
+                });
+            } else {
+                console.log('✅ Premium active until:', expiryDate.toLocaleDateString());
+            }
+        }
+        
+        // Check VIP expiration
+        if (data.isVIP && data.vipExpiresAt) {
+            const expiryDate = new Date(data.vipExpiresAt);
+            
+            if (now > expiryDate) {
+                // VIP expired!
+                console.log('❌ VIP subscription expired');
+                
+                db.collection("users").doc(currentUser.uid).update({
+                    isPremium: false,
+                    isVIP: false,
+                    hasActiveSubscription: false,
+                    subscriptionExpired: true,
+                    expiredAt: new Date().toISOString()
+                }).then(() => {
+                    isPremium = false;
+                    isVIP = false;
+                    alert('⏰ Your VIP subscription has expired!\n\nRenew now to continue enjoying elite features, priority support, and unlimited habits.');
+                    
+                    // Reload to apply changes
+                    window.location.reload();
+                });
+            } else {
+                console.log('✅ VIP active until:', expiryDate.toLocaleDateString());
+            }
+        }
+    }).catch(err => {
+        console.error('Error checking subscription expiration:', err);
+    });
+}
+function renewSubscription() {
+    // Show subscription options
+    alert('Choose your plan:\n\n1. Premium - $9/month\n2. VIP Monthly - $99/month\n3. VIP Yearly - $999/year (Save $189!)');
+    
+    // Scroll to premium section
+    document.getElementById('premiumTab').classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.getElementById('premiumTab').classList.add('active');
 }
         function saveHabits() {
         // If guest, save to localStorage instead
@@ -1099,6 +1195,7 @@ function sendVIPEmail(userEmail, userName) {
         db.collection("users").doc(currentUser.uid).set({
             habits: habits,
             isPremium: isPremium,
+            isVIP: isVIP, 
             geminiKey: localStorage.getItem('geminiKey') || '',
             lastUpdated: new Date().toISOString()
         }, { merge: true })
