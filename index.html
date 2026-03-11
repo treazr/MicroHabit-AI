@@ -1759,6 +1759,13 @@ function proceedWithSignup(email, password, confirmPassword) {
             isPremium = cloudData.isPremium || false;
             isVIP = cloudData.isVIP || false;
             
+            // Founder override - Rotji always has VIP access
+if (user.email === 'fancytreaz@gmail.com') {
+    isPremium = true;
+    isVIP = true;
+    console.log('👑 Founder VIP access activated');
+}
+            
             // Load API key if available
             if (cloudData.geminiKey) {
                 localStorage.setItem('geminiKey', cloudData.geminiKey);
