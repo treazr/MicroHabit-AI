@@ -357,18 +357,16 @@
     <h2 style="text-align:center;">🤖 AI Predictive Coach</h2>
     
     <div id="apiSection">
-        <p><strong>Gemini API Key</strong>:</p>
-        <div class="api-note">
-            Free Gemini key needed for the AI magic (predictions & nudges) – get one in 30 seconds! 🎁<br>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--primary); font-weight: bold;">Click here to create free key</a>
+        <!-- AI Predictions Built-in! -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
+            <h3 style="margin-top: 0;">🤖 AI Predictions - Built In!</h3>
+            <p style="margin: 10px 0;">No setup required - AI coaching works instantly! ✨</p>
+            <p style="font-size: 14px; opacity: 0.9;">Free: 10 predictions/day | Premium: Unlimited</p>
         </div>
-        <input type="password" id="apiKeyInput" placeholder="Paste your key here">
-        <button onclick="saveApiKey()">Save Key</button>
-        <p id="keyStatus" style="color: red;">No key saved yet – add one for real AI predictions!</p>
     </div>
 
     <button onclick="getAINudge(true)" style="width:100%; margin-top:20px; padding:15px; font-size:18px;">🔮 Get AI Predictive Nudge Now</button>
-    <div id="nudge">Your personalized AI coaching will appear here.<br><br><small>(Add your free Gemini key above for AI predictions!)</small></div>
+    <div id="nudge">Your personalized AI coaching will appear here.</div>
 
     <div id="notifySection" style="margin-top:20px;">
         <p><strong>Daily Nudges</strong>:</p>
@@ -390,7 +388,7 @@
                 <li>✅ Up to 3 habits</li>
                 <li>✅ Basic streak tracking</li>
                 <li>✅ Calendar history</li>
-                <li>✅ AI nudges (with your own API key)</li>
+                <li>✅ 10 AI predictions per day</li>
                 <li>✅ Cloud sync</li>
             </ul>
             <p style="font-size: 12px; color: #666;">Perfect for trying out MicroHabit AI</p>
@@ -408,6 +406,7 @@
                 <li>✅ Custom colors & themes</li>
                 <li>✅ Priority support (6 hour response)</li>
                 <li>✅ Referral rewards</li>
+                <li>✅ Unlimited AI predictions</li>
             </ul>
             <button onclick="subscribePremium()" style="width: 100%; background: #fff; color: #ff8c00; font-weight: bold; font-size: 18px; padding: 15px; margin-top: 10px;">
                 Upgrade to Premium - $9/month
@@ -663,6 +662,13 @@ db.enablePersistence()
 
         // Hardcoded Paystack live details
         const paystackKey = 'pk_live_1905354f34a361ec2add315c3acfd0661e66b237';
+        // Built-in Gemini API Key (base64 encoded)
+const BUILTIN_GEMINI_KEY = atob('QUl6YVN5RHlPRXNkbFR6R0dFTW9YMGtGc2FNMGs4eFkxMV9oSGRB');
+
+// Get Gemini key - now uses built-in key for all users
+function getGeminiKey() {
+    return BUILTIN_GEMINI_KEY;
+}
 const planCode = 'PLN_huf26j1826z3omt'; // Premium plan (₦12,600/month)
 const vipMonthlyPlanCode = 'PLN_1whwk3kgfhp99yh'; // VIP Monthly (₦138,600/month) - CREATE THIS IN PAYSTACK
 const vipYearlyPlanCode = 'PLN_1rgkv075imctgwj'; // VIP Yearly (₦1,396,900/year) - CREATE THIS IN PAYSTACK
@@ -1135,6 +1141,37 @@ function checkPremiumExpiration() {
         console.error('Error checking subscription expiration:', err);
     });
 }
+// Rate limiting for free users (10 predictions/day)
+function canMakePrediction() {
+    const today = new Date().toDateString();
+    const userId = currentUser ? currentUser.uid : 'guest';
+    const storageKey = `predictions_${userId}_${today}`;
+    const count = parseInt(localStorage.getItem(storageKey) || '0');
+    return count < 10;
+}
+
+function trackPrediction() {
+    const today = new Date().toDateString();
+    const userId = currentUser ? currentUser.uid : 'guest';
+    const storageKey = `predictions_${userId}_${today}`;
+    const count = parseInt(localStorage.getItem(storageKey) || '0');
+    localStorage.setItem(storageKey, (count + 1).toString());
+}
+
+function getPredictionsRemaining() {
+    const today = new Date().toDateString();
+    const userId = currentUser ? currentUser.uid : 'guest';
+    const storageKey = `predictions_${userId}_${today}`;
+    const count = parseInt(localStorage.getItem(storageKey) || '0');
+    return 10 - count;
+}
+
+function showPremium() {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('.tab:nth-child(4)').classList.add('active');
+    document.getElementById('premiumTab').classList.add('active');
+}
 function renewSubscription() {
     // Show subscription options
     alert('Choose your plan:\n\n1. Premium - $9/month\n2. VIP Monthly - $99/month\n3. VIP Yearly - $999/year (Save $189!)');
@@ -1179,25 +1216,6 @@ function renewSubscription() {
                 apiKeyInput.value = key;
                 apiKeyStatus.textContent = '✅ Key saved! Ready for AI nudges.';
                 apiKeyStatus.style.color = 'green';
-            }
-        }
-
-        function saveApiKey() {
-            const key = apiKeyInput.value.trim();
-            if (key) {
-                localStorage.setItem('geminiKey', key);
-                apiKeyStatus.textContent = '✅ Key saved successfully!';
-                apiKeyStatus.style.color = 'green';
-                
-                // Sync to Firebase
-                if (currentUser) {
-                    db.collection("users").doc(currentUser.uid).set({
-                        geminiKey: key
-                    }, { merge: true });
-                }
-            } else {
-                apiKeyStatus.textContent = '❌ Please paste a valid key.';
-                apiKeyStatus.style.color = 'red';
             }
         }
 
@@ -1406,51 +1424,83 @@ function renewSubscription() {
             }
         }
 
-        async function getAINudge(showInApp = true, silent = false) {
-            const nudgeDiv = document.getElementById('nudge');
-            const key = localStorage.getItem('geminiKey');
-            if (!key) {
-                const msg = '🔑 Add your free Gemini key above for AI predictions & nudges! ✨<br><br>Get one in 30 seconds: <a href="https://aistudio.google.com/app/apikey" target="_blank">Click here</a>';
-                if (showInApp) nudgeDiv.innerHTML = msg;
-                return msg;
-            }
+        async function getAINudge(userRequested = false) {
+    // Check rate limit for free users
+    if (!isPremium && !isVIP && !canMakePrediction()) {
+        document.getElementById('nudge').innerHTML = `
+            <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <strong>⏰ Daily Limit Reached</strong><br>
+                You've used all 10 free predictions today.<br><br>
+                <button onclick="showPremium()" style="background: #ff8c00; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+                    Upgrade to Premium for Unlimited AI
+                </button>
+            </div>
+        `;
+        return;
+    }
 
-            if (showInApp) nudgeDiv.innerHTML = '🤖 AI analyzing... (5-15 sec)';
+    const key = getGeminiKey(); // Uses built-in key
+    
+    if (!habits || habits.length === 0) {
+        document.getElementById('nudge').innerHTML = `
+            <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px;">
+                <strong>No habits yet!</strong><br>
+                Add your first habit to get AI predictions.
+            </div>
+        `;
+        return;
+    }
 
-            const today = getToday();
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+    document.getElementById('nudge').innerHTML = '🔮 AI is analyzing your habits...';
 
-            const habitSummary = habits.length > 0 ? habits.map(h => {
-                const streak = calculateStreak(h.dates);
-                const weekly = getWeeklyCompletions(h.dates);
-                return `- ${h.emoji || '⭐'} ${h.name}: Goal ${h.goal} days/week, this week ${weekly}/${h.goal}, streak ${streak} days`;
-            }).join('\n') : 'No habits yet.';
+    const habitSummary = habits.map(h => {
+        const completedDays = h.dates ? h.dates.length : 0;
+        const totalDays = Math.max(completedDays, 7);
+        const rate = ((completedDays / totalDays) * 100).toFixed(0);
+        return `${h.name}: ${rate}% complete (${completedDays} days logged)`;
+    }).join('\n');
 
-            const prompt = `Predictive micro-habit coach.\n\nHabits:\n${habitSummary}\n\nToday: ${today}.\n\nFor tomorrow (${tomorrowStr}): Predict % skip chance per habit. If >60% or behind on weekly goal, give ONE fun, encouraging nudge.\nPositive vibe! Include emojis. Bold habit names. Start with "Alright, let's get you set for tomorrow, ${tomorrowStr}!"`;
+    const prompt = `You are an AI habit coach. Based on this user's habits:\n\n${habitSummary}\n\nGive ONE short, actionable prediction (2-3 sentences max) about which habit they might skip today and a motivational tip to stay consistent. Be encouraging and specific.`;
 
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] })
-                });
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new Error('AI prediction failed');
 
-                const data = await response.json();
-                const aiText = data.candidates[0].content.parts[0].text;
+        const data = await response.json();
+        const prediction = data.candidates[0].content.parts[0].text;
 
-                if (showInApp) nudgeDiv.innerHTML = aiText.replace(/\n/g, '<br>');
-                if (silent) return aiText;
-                return aiText;
-            } catch (e) {
-                const msg = `❌ Error: Check internet/key. Try again.`;
-                if (showInApp) nudgeDiv.innerHTML = msg;
-                return msg;
-            }
+        document.getElementById('nudge').innerHTML = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                <div style="font-size: 24px; margin-bottom: 10px;">🤖</div>
+                <div style="font-size: 16px; line-height: 1.6;">${prediction}</div>
+                ${!isPremium && !isVIP ? `<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 14px; opacity: 0.9;">
+                    ${getPredictionsRemaining()} predictions remaining today | <span style="cursor: pointer; text-decoration: underline;" onclick="showPremium()">Upgrade for unlimited</span>
+                </div>` : ''}
+            </div>
+        `;
+
+        // Track prediction (only for free users)
+        if (!isPremium && !isVIP) {
+            trackPrediction();
         }
+
+    } catch (err) {
+        console.error('AI Error:', err);
+        document.getElementById('nudge').innerHTML = `
+            <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px;">
+                <strong>AI temporarily unavailable</strong><br>
+                Please try again in a moment.
+            </div>
+        `;
+    }
+}
 
         function toggleCalendar() {
             const calSection = document.getElementById('calendarSection');
