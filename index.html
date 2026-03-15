@@ -139,62 +139,6 @@
             50% { transform: scale(1.2) rotate(5deg); }
         }
         .celebrating { animation: streak-celebration 0.5s ease-in-out 3; }
-        
-        /* Reminder UI Styles */
-        .reminder-btn { 
-            background: #9b59b6; 
-            font-size: 12px; 
-            padding: 5px 10px; 
-            margin-left: 5px;
-        }
-        .reminder-time { 
-            font-size: 12px; 
-            color: #9b59b6; 
-            margin-left: 10px;
-            font-weight: bold;
-        }
-        .reminder-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .reminder-modal-content {
-            background: var(--card);
-            padding: 30px;
-            border-radius: 15px;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        }
-        .reminder-modal h3 {
-            margin-top: 0;
-            color: var(--primary);
-        }
-        .reminder-modal input[type="time"] {
-            width: 100%;
-            padding: 12px;
-            font-size: 18px;
-            border: 2px solid var(--primary);
-            border-radius: 8px;
-            margin: 15px 0;
-        }
-        .reminder-modal-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .reminder-modal-buttons button {
-            flex: 1;
-            padding: 12px;
-            font-size: 16px;
-        }
         .progress-container { margin: 10px 0; }
         .progress-text { font-size: 14px; margin-bottom: 5px; }
         progress { width: 100%; height: 20px; accent-color: var(--primary); }
@@ -1398,13 +1342,11 @@ function renewSubscription() {
                 const emoji = habit.emoji || '⭐';
                 const bestStreak = getBestStreak(index);
                 const fireEmojis = getStreakFire(streak);
-                const reminder = getHabitReminder(index);
 
                 li.innerHTML = `
                     <div class="habit-header">
                         <span class="habit-emoji">${emoji}</span>
                         <div class="habit-name">${habit.name}</div>
-                        ${reminder && reminder.enabled ? `<span class="reminder-time">🔔 ${reminder.time}</span>` : ''}
                     </div>
                     ${isVIP ? '<div class="premium-badge" style="background: gold; color: black;">👑 VIP HABIT</div>' : isPremium ? '<div class="premium-badge">Premium User 💎</div>' : ''}
                     <div class="streak-container">
@@ -1424,7 +1366,6 @@ function renewSubscription() {
                     </div>
                     <div class="habit-controls">
                         <input type="checkbox" class="checkbox" ${doneToday ? 'checked' : ''}>
-                        <button onclick="openReminderModal(${index})" class="reminder-btn">🔔 Reminder</button>
                         ${isVIP ? '<button onclick="addHabitNote(' + index + ')" style="background:#4a90e2; font-size:12px; padding:5px;">📝 Add Note</button>' : ''}
                         <button onclick="deleteHabit(${index})" style="background:red;">Delete</button>
                     </div>
@@ -2257,194 +2198,6 @@ window.addEventListener('appinstalled', () => {
     dismissInstallBanner();
     localStorage.setItem('installBannerDismissed', 'true');
 });
-
-// ========== REMINDER SYSTEM ==========
-
-let currentReminderIndex = null;
-
-// Request notification permission
-function requestNotificationPermission() {
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-                console.log('✅ Notification permission granted!');
-                new Notification('MicroHabit AI Reminders Enabled! 🔔', {
-                    body: 'You\'ll get reminders for your habits!',
-                    icon: 'logo.png'
-                });
-            }
-        });
-    }
-}
-
-// Open reminder modal
-function openReminderModal(habitIndex) {
-    currentReminderIndex = habitIndex;
-    const habit = habits[habitIndex];
-    
-    console.log('🔔 Opening reminder modal for habit:', habit.name);
-    console.log('📱 Notification permission status:', Notification.permission);
-    
-    // FORCE request permission if not already decided
-    if ('Notification' in window) {
-        if (Notification.permission === 'default') {
-            console.log('⚠️ Requesting notification permission...');
-            Notification.requestPermission().then(permission => {
-                console.log('✅ Permission result:', permission);
-                if (permission === 'granted') {
-                    alert('✅ Notifications enabled! You\'ll get reminders!');
-                    // Send test notification
-                    new Notification('MicroHabit AI Test! 🔔', {
-                        body: 'Reminders are working! ✅',
-                        icon: 'logo.png'
-                    });
-                } else if (permission === 'denied') {
-                    alert('❌ Notifications blocked!\n\nTo enable:\n1. Click lock icon in address bar\n2. Allow notifications\n3. Refresh page');
-                }
-            });
-        } else if (Notification.permission === 'granted') {
-            console.log('✅ Permission already granted!');
-            // Send test notification immediately
-            new Notification('MicroHabit AI Ready! 🔔', {
-                body: 'You can set reminders now!',
-                icon: 'logo.png'
-            });
-        } else {
-            alert('❌ Notifications are blocked!\n\nTo enable:\n1. Click lock icon in address bar\n2. Allow notifications\n3. Refresh page');
-        }
-    } else {
-        alert('❌ Your browser doesn\'t support notifications!');
-    }
-    
-    document.getElementById('reminderHabitName').textContent = `For: ${habit.emoji} ${habit.name}`;
-    
-    // Load existing reminder if any
-    const reminder = getHabitReminder(habitIndex);
-    if (reminder) {
-        document.getElementById('reminderTimeInput').value = reminder.time;
-        document.getElementById('reminderEnabled').checked = reminder.enabled;
-    } else {
-        document.getElementById('reminderTimeInput').value = '09:00';
-        document.getElementById('reminderEnabled').checked = true;
-    }
-    
-    document.getElementById('reminderModal').style.display = 'flex';
-}
-
-// Close reminder modal
-function closeReminderModal() {
-    document.getElementById('reminderModal').style.display = 'none';
-    currentReminderIndex = null;
-}
-
-// Save reminder
-function saveReminder() {
-    const time = document.getElementById('reminderTimeInput').value;
-    const enabled = document.getElementById('reminderEnabled').checked;
-    
-    console.log('💾 Saving reminder:', {
-        habitIndex: currentReminderIndex,
-        time: time,
-        enabled: enabled
-    });
-    
-    const reminder = {
-        time: time,
-        enabled: enabled,
-        habitIndex: currentReminderIndex
-    };
-    
-    localStorage.setItem(`reminder_${currentReminderIndex}`, JSON.stringify(reminder));
-    console.log('✅ Reminder saved to localStorage');
-    
-    closeReminderModal();
-    renderHabits();
-    
-    if (enabled) {
-        alert(`✅ Reminder set for ${time}!\n\nYou'll get a notification if you haven't checked off this habit.\n\n⏰ Current time: ${new Date().toLocaleTimeString()}\n🔔 Next check in ~1 minute`);
-    } else {
-        alert('🔕 Reminder disabled for this habit.');
-    }
-}
-
-// Get habit reminder
-function getHabitReminder(habitIndex) {
-    const data = localStorage.getItem(`reminder_${habitIndex}`);
-    return data ? JSON.parse(data) : null;
-}
-
-// Check and send notifications
-function checkReminders() {
-    const now = new Date();
-    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const today = getToday();
-    
-    console.log('🔍 Checking reminders at', currentTime);
-    console.log('📱 Notification permission:', Notification.permission);
-    console.log('📅 Today:', today);
-    console.log('📊 Total habits:', habits.length);
-    
-    if ('Notification' in window && Notification.permission !== 'granted') {
-        console.log('⚠️ Notification permission not granted, skipping checks');
-        return;
-    }
-    
-    habits.forEach((habit, index) => {
-        const reminder = getHabitReminder(index);
-        console.log(`Habit ${index} (${habit.name}):`, reminder);
-        
-        if (reminder && reminder.enabled) {
-            console.log(`  ⏰ Reminder time: ${reminder.time}, Current: ${currentTime}`);
-            
-            if (reminder.time === currentTime) {
-                const doneToday = habit.dates.includes(today);
-                console.log(`  ✅ TIME MATCH! Done today: ${doneToday}`);
-                
-                if (!doneToday) {
-                    console.log(`  🔔 SENDING NOTIFICATION for ${habit.name}!`);
-                    
-                    // Send notification
-                    if (Notification.permission === 'granted') {
-                        try {
-                            const notification = new Notification(`🔔 Habit Reminder: ${habit.name}`, {
-                                body: `Don't forget to ${habit.name} today! 💪`,
-                                icon: 'logo.png',
-                                badge: 'logo.png',
-                                tag: `habit-${index}`,
-                                requireInteraction: false
-                            });
-                            
-                            notification.onclick = () => {
-                                window.focus();
-                                notification.close();
-                            };
-                            
-                            console.log('✅ Notification sent successfully!');
-                        } catch (error) {
-                            console.error('❌ Error sending notification:', error);
-                            alert('❌ Notification error: ' + error.message);
-                        }
-                    }
-                } else {
-                    console.log(`  ⏭️ Already done today, skipping notification`);
-                }
-            }
-        }
-    });
-}
-
-// Check reminders every minute
-setInterval(() => {
-    console.log('⏱️ Running scheduled reminder check...');
-    checkReminders();
-}, 60000);
-
-// Check on page load
-setTimeout(() => {
-    console.log('🚀 Initial reminder check on page load...');
-    checkReminders();
-}, 5000);
-
 // ========== GUEST MODE FUNCTIONS ==========
 
 // Start guest mode
@@ -2615,23 +2368,6 @@ function convertGuestToUser() {
     <div class="banner-buttons">
         <button class="btn-install" onclick="installApp()">➕ Add to Home Screen</button>
         <button class="btn-dismiss" onclick="dismissInstallBanner()">✕ Not now</button>
-    </div>
-</div>
-
-<!-- Reminder Modal -->
-<div id="reminderModal" class="reminder-modal">
-    <div class="reminder-modal-content">
-        <h3>🔔 Set Reminder Time</h3>
-        <p id="reminderHabitName" style="color: #666; margin-bottom: 10px;"></p>
-        <input type="time" id="reminderTimeInput" value="09:00">
-        <label style="display: flex; align-items: center; gap: 10px; margin-top: 15px;">
-            <input type="checkbox" id="reminderEnabled" checked style="transform: scale(1.5);">
-            <span>Enable daily reminder</span>
-        </label>
-        <div class="reminder-modal-buttons">
-            <button onclick="saveReminder()" style="background: #9b59b6;">💾 Save</button>
-            <button onclick="closeReminderModal()" style="background: #666;">Cancel</button>
-        </div>
     </div>
 </div>
 </body>
