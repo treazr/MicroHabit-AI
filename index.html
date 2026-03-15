@@ -2282,9 +2282,38 @@ function openReminderModal(habitIndex) {
     currentReminderIndex = habitIndex;
     const habit = habits[habitIndex];
     
-    // Request permission if not already granted
-    if ('Notification' in window && Notification.permission === 'default') {
-        requestNotificationPermission();
+    console.log('🔔 Opening reminder modal for habit:', habit.name);
+    console.log('📱 Notification permission status:', Notification.permission);
+    
+    // FORCE request permission if not already decided
+    if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+            console.log('⚠️ Requesting notification permission...');
+            Notification.requestPermission().then(permission => {
+                console.log('✅ Permission result:', permission);
+                if (permission === 'granted') {
+                    alert('✅ Notifications enabled! You\'ll get reminders!');
+                    // Send test notification
+                    new Notification('MicroHabit AI Test! 🔔', {
+                        body: 'Reminders are working! ✅',
+                        icon: 'logo.png'
+                    });
+                } else if (permission === 'denied') {
+                    alert('❌ Notifications blocked!\n\nTo enable:\n1. Click lock icon in address bar\n2. Allow notifications\n3. Refresh page');
+                }
+            });
+        } else if (Notification.permission === 'granted') {
+            console.log('✅ Permission already granted!');
+            // Send test notification immediately
+            new Notification('MicroHabit AI Ready! 🔔', {
+                body: 'You can set reminders now!',
+                icon: 'logo.png'
+            });
+        } else {
+            alert('❌ Notifications are blocked!\n\nTo enable:\n1. Click lock icon in address bar\n2. Allow notifications\n3. Refresh page');
+        }
+    } else {
+        alert('❌ Your browser doesn\'t support notifications!');
     }
     
     document.getElementById('reminderHabitName').textContent = `For: ${habit.emoji} ${habit.name}`;
@@ -2313,6 +2342,12 @@ function saveReminder() {
     const time = document.getElementById('reminderTimeInput').value;
     const enabled = document.getElementById('reminderEnabled').checked;
     
+    console.log('💾 Saving reminder:', {
+        habitIndex: currentReminderIndex,
+        time: time,
+        enabled: enabled
+    });
+    
     const reminder = {
         time: time,
         enabled: enabled,
@@ -2320,12 +2355,13 @@ function saveReminder() {
     };
     
     localStorage.setItem(`reminder_${currentReminderIndex}`, JSON.stringify(reminder));
+    console.log('✅ Reminder saved to localStorage');
     
     closeReminderModal();
     renderHabits();
     
     if (enabled) {
-        alert(`✅ Reminder set for ${time}!\n\nYou'll get a notification if you haven't checked off this habit.`);
+        alert(`✅ Reminder set for ${time}!\n\nYou'll get a notification if you haven't checked off this habit.\n\n⏰ Current time: ${new Date().toLocaleTimeString()}\n🔔 Next check in ~1 minute`);
     } else {
         alert('🔕 Reminder disabled for this habit.');
     }
@@ -2339,34 +2375,58 @@ function getHabitReminder(habitIndex) {
 
 // Check and send notifications
 function checkReminders() {
-    if ('Notification' in window && Notification.permission !== 'granted') {
-        return; // Don't check if no permission
-    }
-    
     const now = new Date();
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const today = getToday();
     
+    console.log('🔍 Checking reminders at', currentTime);
+    console.log('📱 Notification permission:', Notification.permission);
+    console.log('📅 Today:', today);
+    console.log('📊 Total habits:', habits.length);
+    
+    if ('Notification' in window && Notification.permission !== 'granted') {
+        console.log('⚠️ Notification permission not granted, skipping checks');
+        return;
+    }
+    
     habits.forEach((habit, index) => {
         const reminder = getHabitReminder(index);
-        if (reminder && reminder.enabled && reminder.time === currentTime) {
-            const doneToday = habit.dates.includes(today);
+        console.log(`Habit ${index} (${habit.name}):`, reminder);
+        
+        if (reminder && reminder.enabled) {
+            console.log(`  ⏰ Reminder time: ${reminder.time}, Current: ${currentTime}`);
             
-            if (!doneToday) {
-                // Send notification
-                if (Notification.permission === 'granted') {
-                    const notification = new Notification(`🔔 Habit Reminder: ${habit.name}`, {
-                        body: `Don't forget to ${habit.name} today! 💪`,
-                        icon: 'logo.png',
-                        badge: 'logo.png',
-                        tag: `habit-${index}`,
-                        requireInteraction: false
-                    });
+            if (reminder.time === currentTime) {
+                const doneToday = habit.dates.includes(today);
+                console.log(`  ✅ TIME MATCH! Done today: ${doneToday}`);
+                
+                if (!doneToday) {
+                    console.log(`  🔔 SENDING NOTIFICATION for ${habit.name}!`);
                     
-                    notification.onclick = () => {
-                        window.focus();
-                        notification.close();
-                    };
+                    // Send notification
+                    if (Notification.permission === 'granted') {
+                        try {
+                            const notification = new Notification(`🔔 Habit Reminder: ${habit.name}`, {
+                                body: `Don't forget to ${habit.name} today! 💪`,
+                                icon: 'logo.png',
+                                badge: 'logo.png',
+                                tag: `habit-${index}`,
+                                requireInteraction: false
+                            });
+                            
+                            notification.onclick = () => {
+                                window.focus();
+                                notification.close();
+                            };
+                            
+                            console.log('✅ Notification sent successfully!');
+                        } catch (error) {
+                            console.error('❌ Error sending notification:', error);
+                            alert('❌ Notification error: ' + error.message);
+                        }
+                    }
+                } else {
+                    console.log(`  ⏭️ Already done today, skipping notification`);
                 }
             }
         }
@@ -2374,10 +2434,16 @@ function checkReminders() {
 }
 
 // Check reminders every minute
-setInterval(checkReminders, 60000);
+setInterval(() => {
+    console.log('⏱️ Running scheduled reminder check...');
+    checkReminders();
+}, 60000);
 
 // Check on page load
-setTimeout(checkReminders, 5000);
+setTimeout(() => {
+    console.log('🚀 Initial reminder check on page load...');
+    checkReminders();
+}, 5000);
 
 // ========== GUEST MODE FUNCTIONS ==========
 
