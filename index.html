@@ -1284,17 +1284,35 @@ function renewSubscription() {
         function calculateStreak(dates) {
             if (dates.length === 0) return 0;
             dates = [...new Set(dates)].sort().reverse();
+            
             let streak = 0;
             let checkDate = new Date();
             let currentDateStr = getToday();
-            while (true) {
-                if (dates[streak] === currentDateStr) {
+            
+            // Check if done today
+            if (dates.includes(currentDateStr)) {
+                // Start counting from today
+                while (streak < dates.length && dates[streak] === currentDateStr) {
                     streak++;
                     checkDate.setDate(checkDate.getDate() - 1);
                     currentDateStr = checkDate.toISOString().slice(0, 10);
-                } else if (streak > 0) break;
-                else break;
+                }
+            } else {
+                // Not done today, check if done yesterday (to show yesterday's streak)
+                checkDate.setDate(checkDate.getDate() - 1);
+                currentDateStr = checkDate.toISOString().slice(0, 10);
+                
+                if (dates.includes(currentDateStr)) {
+                    // Had a streak yesterday, count it!
+                    while (streak < dates.length && dates[streak] === currentDateStr) {
+                        streak++;
+                        checkDate.setDate(checkDate.getDate() - 1);
+                        currentDateStr = checkDate.toISOString().slice(0, 10);
+                    }
+                }
+                // If not done yesterday either, streak is 0
             }
+            
             return streak;
         }
 
